@@ -3,17 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Heart</title>
+  <title>Heart Particles + Text</title>
   <style>
-    html, body {
-      margin: 0;
-      height: 100%;
-      background: black;
-      overflow: hidden;
-    }
-    canvas {
-      display: block;
-    }
+    html, body { margin:0; height:100%; background:#000; overflow:hidden; }
+    canvas { display:block; }
   </style>
 </head>
 <body>
@@ -23,40 +16,35 @@
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
-function resize() {
-  canvas.width = innerWidth * devicePixelRatio;
+function resize(){
+  canvas.width  = innerWidth * devicePixelRatio;
   canvas.height = innerHeight * devicePixelRatio;
-  canvas.style.width = innerWidth + "px";
+  canvas.style.width  = innerWidth + "px";
   canvas.style.height = innerHeight + "px";
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 }
 addEventListener("resize", resize);
 resize();
 
-const rand = (max = 1, min = 0) => Math.random() * (max - min) + min;
+const rand = (max=1, min=0) => Math.random() * (max - min) + min;
 
-// Kalp eğrisi
-function heartPoint(t) {
-  return {
-    x: 16 * Math.pow(Math.sin(t), 3),
-    y: 13 * Math.cos(t)
-       - 5 * Math.cos(2 * t)
-       - 2 * Math.cos(3 * t)
-       - Math.cos(4 * t)
-  };
+// Parametric heart curve
+function heartPoint(t){
+  const x = 16 * Math.pow(Math.sin(t), 3);
+  const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+  return { x, y };
 }
 
 class Particle {
-  constructor() {
-    this.reset(true);
-  }
+  constructor() { this.reset(true); }
 
-  reset(first = false) {
+  reset(first=false){
     this.t = rand(Math.PI * 2, 0);
     const p = heartPoint(this.t);
 
     this.cx = innerWidth / 2;
     this.cy = innerHeight / 2;
+
     this.scale = Math.min(innerWidth, innerHeight) * 0.02;
 
     this.x = this.cx + p.x * this.scale;
@@ -67,82 +55,112 @@ class Particle {
     const len = Math.hypot(dx, dy) || 1;
 
     const speed = rand(2.2, 0.8);
-    this.vx = (dx / len) * speed;
-    this.vy = (dy / len) * speed;
+    this.vx = (dx / len) * speed + rand(0.6, -0.6);
+    this.vy = (dy / len) * speed + rand(0.6, -0.6);
 
     this.trail = [];
-    this.trailLen = 14;
-    this.r = 1.8;
-    this.life = first ? 200 : 120;
+    this.trailLen = Math.floor(rand(18, 8));
+    this.r = rand(2.4, 1.2);
 
-    this.color = "rgba(255,80,80,1)";
+    const h = rand(8, 0);     // red-ish hue
+    const s = rand(95, 70);
+    const l = rand(70, 45);
+    this.color = `hsla(${h}, ${s}%, ${l}%, 1)`;
+
+    this.life = first ? rand(200, 60) : rand(140, 40);
   }
 
-  step() {
+  step(){
     this.life--;
+
     this.trail.push({ x: this.x, y: this.y });
     if (this.trail.length > this.trailLen) this.trail.shift();
 
+    // friction
     this.vx *= 0.985;
     this.vy *= 0.985;
 
     this.x += this.vx;
     this.y += this.vy;
 
+    // gentle pull to center (keeps heart "alive")
+    const pull = 0.0025;
+    this.x += (innerWidth/2  - this.x) * pull;
+    this.y += (innerHeight/2 - this.y) * pull;
+
     if (this.life <= 0) this.reset();
   }
 
-  draw() {
-    for (let i = 0; i < this.trail.length; i++) {
+  draw(){
+    // trail
+    for (let i = 0; i < this.trail.length; i++){
       const p = this.trail[i];
       const a = (i + 1) / this.trail.length;
-      ctx.globalAlpha = a * 0.6;
+
+      ctx.globalAlpha = a * 0.7;
+      ctx.fillStyle = this.color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, this.r * a, 0, Math.PI * 2);
-      ctx.fillStyle = this.color;
       ctx.fill();
     }
+
+    // head
     ctx.globalAlpha = 1;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r * 0.55, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
-const particles = Array.from({ length: 900 }, () => new Particle());
+// Particles count
+const N = 900;
+const particles = Array.from({ length: N }, () => new Particle());
 
-// ❤️ YAZI AYARI (KÜÇÜK VE GARANTİLİ)
-function drawText(time) {
-  const pulse = 1 + 0.04 * Math.sin(time / 400);
+// Text pulse
+let start = performance.now();
 
-  const baseSize = Math.min(innerWidth, innerHeight) * 0.028;
+function drawCenterText(time){
+  const t = (time - start) / 1000;            // seconds
+  const pulse = 1 + 0.06 * Math.sin(t * 2.6); // gentle heartbeat
 
   ctx.save();
   ctx.globalCompositeOperation = "source-over";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `bold ${baseSize * pulse}px Arial`;
-  ctx.fillStyle = "rgba(255,80,80,0.95)";
-  ctx.shadowColor = "rgba(255,80,80,0.6)";
+
+  // glow effect
+  ctx.shadowColor = "rgba(255, 80, 80, 0.9)";
   ctx.shadowBlur = 18;
 
-  ctx.fillText("Emre, bu kalp senin ❤️", innerWidth / 2, innerHeight / 2);
+  const baseSize = 32;
+  ctx.font = `bold ${Math.floor(baseSize * pulse)}px Arial`;
+  ctx.fillStyle = "rgba(255, 80, 80, 0.95)";
+
+  ctx.fillText("Aşkım seni çok seviyorum ❤️E", innerWidth/2, innerHeight/2 + 10);
   ctx.restore();
 }
 
-function frame(time) {
-  ctx.fillStyle = "rgba(0,0,0,0.25)";
+function frame(time){
+  // fade background slightly for motion trails
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "rgba(0,0,0,0.20)";
   ctx.fillRect(0, 0, innerWidth, innerHeight);
 
+  // brighter blending for particles
   ctx.globalCompositeOperation = "lighter";
-  for (const p of particles) {
+
+  for (const p of particles){
     p.step();
     p.draw();
   }
 
-  drawText(time);
+  // draw text on top
+  drawCenterText(time);
+
   requestAnimationFrame(frame);
 }
-
 requestAnimationFrame(frame);
 </script>
 </body>
 </html>
-
